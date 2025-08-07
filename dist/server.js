@@ -23,6 +23,9 @@ const io = new socket_io_1.Server(server, {
 const PORT = process.env.PORT || 3001;
 const players = new Map();
 const activeBullets = new Map();
+const ARENA_HALF_SIZE = 200;
+const DAMAGE_ZONE_START = 180;
+const BOUNDARY_DAMAGE_PER_SEC = 20;
 function checkBulletPlayerCollision(bullet, player) {
     const bulletSize = 0.2;
     const playerSize = 1.5;
@@ -32,6 +35,25 @@ function checkBulletPlayerCollision(bullet, player) {
     return (dx < bulletSize + playerSize &&
         dy < bulletSize + playerSize &&
         dz < bulletSize + playerSize);
+}
+function respawnPlayer(playerId) {
+    const player = players.get(playerId);
+    if (!player)
+        return;
+    player.position = { x: 0, y: 0, z: 0 };
+    player.rotation = { x: 0, y: 0, z: 0 };
+    player.velocity = { x: 0, y: 0, z: 0 };
+    player.health = player.maxHealth;
+    player.lastUpdate = Date.now();
+    io.emit("player_respawned", {
+        id: player.id,
+        position: player.position,
+        rotation: player.rotation,
+        velocity: player.velocity,
+        shipModel: player.shipModel,
+        health: player.health,
+        maxHealth: player.maxHealth,
+    });
 }
 setInterval(() => {
     const now = Date.now();
@@ -47,7 +69,7 @@ setInterval(() => {
         for (const [playerId, player] of players.entries()) {
             if (playerId !== bullet.playerId &&
                 checkBulletPlayerCollision(bullet, player)) {
-                player.health -= 25;
+                player.health -= 10;
                 io.emit("player_hit", {
                     playerId,
                     health: player.health,
@@ -55,10 +77,32 @@ setInterval(() => {
                 });
                 if (player.health <= 0) {
                     io.emit("player_died", playerId);
-                    players.delete(playerId);
+                    respawnPlayer(playerId);
                 }
                 activeBullets.delete(bulletId);
                 break;
+            }
+        }
+    }
+    const deltaTime = 0.016;
+    for (const [playerId, player] of players.entries()) {
+        const maxAbsCoord = Math.max(Math.abs(player.position.x), Math.abs(player.position.y), Math.abs(player.position.z));
+        if (maxAbsCoord > DAMAGE_ZONE_START) {
+            const clamped = Math.min(maxAbsCoord, ARENA_HALF_SIZE);
+            const t = (clamped - DAMAGE_ZONE_START) / (ARENA_HALF_SIZE - DAMAGE_ZONE_START);
+            const damage = BOUNDARY_DAMAGE_PER_SEC * t * deltaTime;
+            const previousHealth = player.health;
+            player.health -= damage;
+            if (player.health <= 0) {
+                io.emit("player_died", playerId);
+                respawnPlayer(playerId);
+            }
+            else if (Math.floor(player.health) !== Math.floor(previousHealth)) {
+                io.emit("player_hit", {
+                    playerId,
+                    health: player.health,
+                    maxHealth: player.maxHealth,
+                });
             }
         }
     }

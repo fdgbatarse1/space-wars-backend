@@ -61,6 +61,27 @@ function checkBulletPlayerCollision(bullet: Bullet, player: Player): boolean {
   );
 }
 
+function respawnPlayer(playerId: string): void {
+  const player = players.get(playerId);
+  if (!player) return;
+
+  player.position = { x: 0, y: 0, z: 0 };
+  player.rotation = { x: 0, y: 0, z: 0 };
+  player.velocity = { x: 0, y: 0, z: 0 };
+  player.health = player.maxHealth;
+  player.lastUpdate = Date.now();
+
+  io.emit("player_respawned", {
+    id: player.id,
+    position: player.position,
+    rotation: player.rotation,
+    velocity: player.velocity,
+    shipModel: player.shipModel,
+    health: player.health,
+    maxHealth: player.maxHealth,
+  });
+}
+
 setInterval(() => {
   const now = Date.now();
 
@@ -88,7 +109,7 @@ setInterval(() => {
         });
         if (player.health <= 0) {
           io.emit("player_died", playerId);
-          players.delete(playerId);
+          respawnPlayer(playerId);
         }
         activeBullets.delete(bulletId);
         break;
@@ -114,7 +135,7 @@ setInterval(() => {
 
       if (player.health <= 0) {
         io.emit("player_died", playerId);
-        players.delete(playerId);
+        respawnPlayer(playerId);
       } else if (Math.floor(player.health) !== Math.floor(previousHealth)) {
         io.emit("player_hit", {
           playerId,
