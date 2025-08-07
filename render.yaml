@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: space-wars-backend
+    env: node
+    region: oregon # optional, defaults to oregon
+    plan: free # optional, defaults to starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001

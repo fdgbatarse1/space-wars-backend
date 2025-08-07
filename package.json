@@ -1,10 +1,10 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "server.ts",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --exec tsx server.ts",
-    "build": "tsc",
+    "build": "npm install && tsc",
     "start": "node dist/server.js",
     "start:dev": "tsx server.ts"
   },
@@ -16,14 +16,17 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "typescript": "^5.9.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.2.0",
     "nodemon": "^3.1.10",
-    "tsx": "^4.20.3",
-    "typescript": "^5.9.2"
+    "tsx": "^4.20.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
