@@ -23,14 +23,46 @@ const io = new socket_io_1.Server(server, {
 const PORT = process.env.PORT || 3001;
 const players = new Map();
 const activeBullets = new Map();
+function checkBulletPlayerCollision(bullet, player) {
+    const bulletSize = 0.2;
+    const playerSize = 1.5;
+    const dx = Math.abs(bullet.position.x - player.position.x);
+    const dy = Math.abs(bullet.position.y - player.position.y);
+    const dz = Math.abs(bullet.position.z - player.position.z);
+    return (dx < bulletSize + playerSize &&
+        dy < bulletSize + playerSize &&
+        dz < bulletSize + playerSize);
+}
 setInterval(() => {
     const now = Date.now();
-    for (const [id, bullet] of activeBullets.entries()) {
+    for (const [bulletId, bullet] of activeBullets.entries()) {
         if (now - bullet.timestamp > 5000) {
-            activeBullets.delete(id);
+            activeBullets.delete(bulletId);
+            continue;
+        }
+        const deltaTime = 0.016;
+        bullet.position.x += bullet.velocity.x * deltaTime;
+        bullet.position.y += bullet.velocity.y * deltaTime;
+        bullet.position.z += bullet.velocity.z * deltaTime;
+        for (const [playerId, player] of players.entries()) {
+            if (playerId !== bullet.playerId &&
+                checkBulletPlayerCollision(bullet, player)) {
+                player.health -= 25;
+                io.emit("player_hit", {
+                    playerId,
+                    health: player.health,
+                    maxHealth: player.maxHealth,
+                });
+                if (player.health <= 0) {
+                    io.emit("player_died", playerId);
+                    players.delete(playerId);
+                }
+                activeBullets.delete(bulletId);
+                break;
+            }
         }
     }
-}, 5000);
+}, 16);
 io.on("connection", (socket) => {
     console.log(`Player connected: ${socket.id}`);
     socket.emit("players_list", Array.from(players.values()));
@@ -41,8 +73,11 @@ io.on("connection", (socket) => {
         velocity: { x: 0, y: 0, z: 0 },
         shipModel: "Bob",
         lastUpdate: Date.now(),
+        health: 100,
+        maxHealth: 100,
     };
     players.set(socket.id, newPlayer);
+    socket.broadcast.emit("player_joined", newPlayer);
     socket.on("update_position", (data) => {
         const player = players.get(socket.id);
         if (player) {
@@ -55,6 +90,8 @@ io.on("connection", (socket) => {
                 position: data.position,
                 rotation: data.rotation,
                 velocity: data.velocity,
+                health: player.health,
+                maxHealth: player.maxHealth,
             });
         }
     });
