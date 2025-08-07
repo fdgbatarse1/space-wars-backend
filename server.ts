@@ -42,6 +42,10 @@ interface Bullet {
 const players = new Map<string, Player>();
 const activeBullets = new Map<string, Bullet>();
 
+const ARENA_HALF_SIZE = 200;
+const DAMAGE_ZONE_START = 180;
+const BOUNDARY_DAMAGE_PER_SEC = 20;
+
 function checkBulletPlayerCollision(bullet: Bullet, player: Player): boolean {
   const bulletSize = 0.2;
   const playerSize = 1.5;
@@ -76,7 +80,7 @@ setInterval(() => {
         playerId !== bullet.playerId &&
         checkBulletPlayerCollision(bullet, player)
       ) {
-        player.health -= 25;
+        player.health -= 10;
         io.emit("player_hit", {
           playerId,
           health: player.health,
@@ -88,6 +92,35 @@ setInterval(() => {
         }
         activeBullets.delete(bulletId);
         break;
+      }
+    }
+  }
+
+  const deltaTime = 0.016;
+  for (const [playerId, player] of players.entries()) {
+    const maxAbsCoord = Math.max(
+      Math.abs(player.position.x),
+      Math.abs(player.position.y),
+      Math.abs(player.position.z)
+    );
+
+    if (maxAbsCoord > DAMAGE_ZONE_START) {
+      const clamped = Math.min(maxAbsCoord, ARENA_HALF_SIZE);
+      const t =
+        (clamped - DAMAGE_ZONE_START) / (ARENA_HALF_SIZE - DAMAGE_ZONE_START);
+      const damage = BOUNDARY_DAMAGE_PER_SEC * t * deltaTime;
+      const previousHealth = player.health;
+      player.health -= damage;
+
+      if (player.health <= 0) {
+        io.emit("player_died", playerId);
+        players.delete(playerId);
+      } else if (Math.floor(player.health) !== Math.floor(previousHealth)) {
+        io.emit("player_hit", {
+          playerId,
+          health: player.health,
+          maxHealth: player.maxHealth,
+        });
       }
     }
   }
